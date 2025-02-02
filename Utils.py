@@ -1,24 +1,25 @@
 import requests
 from bs4 import BeautifulSoup
 import time
+import pandas as pd
 
 def get_dom(
         url,
         header = None,
-        parser = 'html.parser'
+        parser = 'html.parser',
+        timeout = 5
 ):
     soup = None
     try:
-        response = requests.get(url,headers=header)
-        time.sleep(3)
+        response = requests.get(url,headers=header,
+        timeout=timeout)
+        response.raise_for_status()
+
+        print("URL fetched successfully")
+
+        soup = BeautifulSoup(response.content, parser)
     except:
         print("Provide proper URL / headers ...")
-
-    if response and response.status_code == 200:
-        soup = BeautifulSoup(response.content, parser)
-        print("URL fetched successfully")
-    else:
-        print("Unable to fetch this url")
     
     return soup
 
@@ -49,45 +50,38 @@ class Xpath_generator():
             return f"{self.XPATHS[self.ELEMENT_IDS[element.parent]]}/{element.name}"
         else:
             return f"//{element.name}"
+    
+    def find_second_attribute(self, attrs, element):
+        if len(attrs) > 1:
+            conditions = []
+            for attr, value in attrs.items():
+                if attr != 'name':
+                    if isinstance(value, list):
+                        value = ' '.join(value)
+                    conditions.append(f"@{attr} = '{value}'")
+            return f"//{element.name}[{' and '.join(conditions)}]"
+        else:
+            text = element.get_text(strip=True)
+            if text:
+                return f"//{element.name}[contains(text(), '{text[:20]}')]"
+            else:
+                return self.generate_tree(element)
+
         
     def find_class_path(self, attrs, element):
-        attribute_values = attrs['class'][:3]
-        if len(self.soup.find_all(attrs={'class' : attribute_values})) == 1:
-            return f"//{element.name}[contains(@class, '{' '.join(attribute_values)}')]"
+        attribute_values = ' '.join(attrs['class'])
+        if len(self.soup.find_all(class_=attribute_values)) == 1:
+            return f"//{element.name}[contains(@class, '{attribute_values}')]"
         else:
-            if len(attrs) > 1:
-                for attr in attrs.keys():
-                    if attr != 'class':
-                        attr_val = attrs[attr]
-                        return f"//{element.name}[contains(@class, '{' '.join(attribute_values)}') and @{attr} = '{attr_val}']"
-                        break
-            else:
-                text = element.find(text=True, recursive=False)
-                if text and len(text) > 0:
-                    return f"//{element.name}[contains(@class, '{' '.join(attribute_values)}') and contains(text(), '{text[:10]}')]"
-                else:
-                    return self.generate_tree(element)
+            return self.find_second_attribute(attrs, element)
+            
     
     def find_name_path(self, attrs, element):
         attribute_value = attrs['name']
         if len(self.soup.find_all(attrs={'name' : attribute_value})) == 1:
-            return f"//{element.name}[@name = '{attribute_value}')]"
+            return f"//{element.name}[@name = '{attribute_value}']"
         else:
-            if len(attrs) > 1:
-                for attr in attrs.keys():
-                    if attr != 'name':
-                        attr_val = attrs[attr]
-                        if attr == 'class':
-                            attr_val = " ".join(attr_val[:3])
-                            return f"//{element.name}[@name = '{attribute_value}' and contains(@class, '{attr_val}')"
-                        return f"//{element.name}[@name = '{attribute_value}' and @{attr} = '{attr_val}']"
-                        break
-            else:
-                text = element.find(text=True, recursive=False)
-                if text and len(text) > 0:
-                    return f"//{element.name}[@name = '{attribute_value}') and contains(text(), '{text[:10]}')]"
-                else:
-                    return self.generate_tree(element)
+            return self.find_second_attribute(attrs,element)
 
 
     def generate_path(self, element):
@@ -96,6 +90,7 @@ class Xpath_generator():
         
         if 'id' in attrs.keys():  # If id is present simply take ID
             self.XPATHS[eid] = attrs['id']
+            # self.XPATHS[eid] = f"//*[@id='{attrs['id']}']"
         
         elif 'name' in attrs.keys():
             self.XPATHS[eid] = self.find_name_path(attrs, element=element)        
@@ -108,5 +103,27 @@ class Xpath_generator():
     def generate_xpath(self):
         for element in self.elements:
             self.generate_path(element)
+        print("Xpaths Generated successfully")
+    
+    def get_all_xpaths(self):
         return self.XPATHS
+    
+    def get_xpath(self, tag):
+        eid = self.ELEMENT_IDS[tag]
+        if eid in self.XPATHS.keys():
+            return self.XPATHS[id]
+        return None
+    
+    def get_csv(self, filename):
+        file = {
+            "element_id" : [],
+            "element" : [],
+            "xpath" : []
+        }
+        for ele, eid in self.ELEMENT_IDS.items():
+            file['element'].append(ele)
+            file['element_id'].append(eid)
+            file['xpath'].append(self.XPATHS[eid])
 
+        df = pd.DataFrame(file)
+        df.to_csv(filename, index=False)
