@@ -49,7 +49,6 @@ class Xpath_generator():
             get_elements: returns a list of all elements in the soup object
             generate_ids: generates unique id for each element as a key-value pair.
             check_uniqueness: return true if the path generated is unique.
-            generate_optimal_path: generate path using indexed approach
             generate_tree: generate path using parent elements
             find_second_attribute: generate path using combination of attributes
             find_class_path: generate path using class attribute
@@ -108,7 +107,7 @@ class Xpath_generator():
             return True
         return False
     
-    def generate_optimal_path(self, element):
+    def generate_tree(self, element):
         """
             params:
                 element : element for which the xpath should be generated
@@ -120,6 +119,9 @@ class Xpath_generator():
             siblings = self.soup.find_previous_siblings(element.name)
             ele_index = len(siblings) + 1 if siblings else 1
 
+            if element in self.XPATHS.keys():
+                path = self.XPATHS[element] + path
+                break
             path = f"//{element.name}[{ele_index}]" + path
 
             element = element.parent
@@ -129,26 +131,26 @@ class Xpath_generator():
         return path
             
 
-    def generate_tree(self, element):
-        """
-            params:
-                element : element for which the xpath should be generated
-            output:
-                path : returns generated xpath
-        """
-        if element.parent in self.ELEMENT_IDS.keys() and self.ELEMENT_IDS[element.parent] in self.XPATHS.keys():
-            path = None
-            if self.XPATHS[self.ELEMENT_IDS[element.parent]][0] != '/':
-                path = f"//{element.parent.name}[@id = '{element.parent.get('id')}']/{element.name}"
-            path = f"{self.XPATHS[self.ELEMENT_IDS[element.parent]]}/{element.name}"
-            if self.check_uniqueness(xpath=path):
-                return path
-            return self.generate_optimal_path(element)
-        else:
-            path = f"//{element.name}"
-            if self.check_uniqueness(path):
-                return path
-            return self.generate_optimal_path(element)
+    # def generate_tree(self, element):
+    #     """
+    #         params:
+    #             element : element for which the xpath should be generated
+    #         output:
+    #             path : returns generated xpath
+    #     """
+    #     if element.parent in self.ELEMENT_IDS.keys() and self.ELEMENT_IDS[element.parent] in self.XPATHS.keys():
+    #         path = None
+    #         if self.XPATHS[self.ELEMENT_IDS[element.parent]][0] != '/':
+    #             path = f"//{element.parent.name}[@id = '{element.parent.get('id')}']/{element.name}"
+    #         path = f"{self.XPATHS[self.ELEMENT_IDS[element.parent]]}/{element.name}"
+    #         if self.check_uniqueness(xpath=path):
+    #             return path
+    #         return self.generate_optimal_path(element)
+    #     else:
+    #         path = f"//{element.name}"
+    #         if self.check_uniqueness(path):
+    #             return path
+    #         return self.generate_optimal_path(element)
     
     def find_second_attribute(self, attrs, element, first_attr):
         """
